@@ -2,13 +2,13 @@
 
 Telegram bot application that converts and crops videos and sends the related telegram timeline. youtube or vimeo links can be used.
 
-*Bot call signature:*
+Bot call signature:
 
 ```
 /giftube <video_url> <start_duration> <to_duration or second>
 ```
 
-*Example usage:*
+Example usage:
 
 ```
 /giftube https://www.youtube.com/watch?v=KTTTbUCxj2o 00:00:30 5
@@ -19,6 +19,8 @@ or
 ```
 /giftube https://www.youtube.com/watch?v=KTTTbUCxj2o 00:00:30 00:00:35
 ```
+
+Maximum gif duration is 30 seconds. If you would give more than that value, the bot will be cropped a 30 seconds part the video from start time.
 
 ## Installation
 
