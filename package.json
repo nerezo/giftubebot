@@ -1,0 +1,29 @@
+{
+  "name": "giftubebot",
+  "description": "",
+  "version": "1.0.0",
+  "repository": {},
+  "keywords": [
+    "telegram",
+    "nodejs",
+    "node.js",
+    "telegram bot",
+    "bot"
+  ],
+  "author": "Okan Özeren",
+  "contributors": [],
+  "license": "MIT",
+  "dependencies": {
+    "crypto": "0.0.3",
+    "log4js": "^0.6.36",
+    "moment": "^2.13.0",
+    "shelljs": "^0.7.0",
+    "telegram-node-bot": "^2.1.2",
+    "youtube-dl": "^1.11.1"
+  },
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "q": "^1.4.1",
+    "sinon": "^1.17.4"
+  }
+}

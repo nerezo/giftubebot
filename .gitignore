@@ -1,0 +1,8 @@
+*.log
+videos/
+log/
+bower_components/
+node_modules/
+.idea/
+dist/
+tmp/
