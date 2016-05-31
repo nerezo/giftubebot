@@ -1,92 +1,148 @@
 'use strict'
 
-var tg = require('telegram-node-bot')('<telegram-bot-key>');
-var fs = require('fs');
-var Q = require('q');
-var moment = require('moment');
-
 var utils = require('./lib/utils.js');
 var ytdlUtils = require('./lib/ytdl-utils.js');
 var ffmpegUtils = require('./lib/ffmpeg-utils.js');
 
-utils.logger.info('Bot listener started...');
+var Q = require('q');
+var moment = require('moment');
+var fs = require('fs');
 
-console.log('Started...');
-console.log('Videos folder: ', utils.defaults.videoBowl);
+var telegram_bot_key;
+try {
+  telegram_bot_key = fs.readFileSync('./telegram_bot_key.key', 'utf8');
+  console.log('Telegram bot key has read.');
+} catch (e) {
+  console.log('The telegram bot key file not found: "telegram_bot_key.key"');
+  return;
+}
+
+var tg = require('telegram-node-bot')(telegram_bot_key);
+
+utils.logger.info('Telegram video to bot listener started...');
+console.log('Telegram video to bot listener started...');
 
 fs.existsSync(utils.defaults.videoBowl) || fs.mkdirSync(utils.defaults.videoBowl);
 
-tg.router.
-    when(['/giftube :url :start :to'], 'GifTubeController')
+// Triggers with two duration values. Crop the video from start to to value.
+tg.router.when(['/gift :url :start :to'], 'GiftControllerMiddleRange')
+tg.controller('GiftControllerMiddleRange', ($) => {
+  tg.for('/gift :url :start :to', ($) => {
+    var url = $.query.url;
+    var start = $.query.start;
+    var to = $.query.to;
 
-tg.controller('GifTubeController', ($) => {
+    giftController($, url, start, to);
+  });
+});
 
-    tg.for('/giftube :url :start :to', ($) => {
-        var url = $.query.url;
-        var start = $.query.start;
-        var to = $.query.to;
+// Triggers with one duration value and decices where from it will crop the
+// video whether beginning or end.
+tg.router.when(['/gift :url :duration'], 'GiftControllerEdgeRange')
+tg.controller('GiftControllerEdgeRange', ($) => {
+  tg.for('/gift :url :duration', ($) => {
+    var url = $.query.url;
+    var duration = $.query.duration;
 
-        utils.logger.info('/giftube called with the parameters url:', url, 'start:', start, 'to:', to);
+    var start, to;
 
-        try {
-            utils.validateStartParam(start);
-            utils.validateToParam(to);
-        } catch(err) {
-            $.sendMessage(err)
+    if (isNaN(duration)) {
+      start = duration;
+      to = utils.defaults.toAsSec;
+    } else {
+      start = '00:00:00';
+      to = Number(duration);
+    }
 
-            return;
-        }
+    giftController($, url, start, to);
+  });
+});
 
-        ytdlUtils.youtubeInfo(url).then(function(result) {
-            $.sendMessage('Video duration: ' + result.duration + '\nTitle: ' + result.title);
+var giftController = function($, url, start, to) {
+  utils.logger.info('/giftube called with the parameters url:', url, 'start:', start, 'to:', to);
 
-            var durations;
-            try {
-                // Checks values of times and normalizes.
-                durations = utils.normalizeDurations(result.duration, start, to);
-            } catch (err) {
-                $.sendMessage(err);
+  try {
+    utils.validateStartParam(start);
+    utils.validateToParam(to);
+  } catch (err) {
+    var message = err.message + ' Please try again.';
+    $.sendMessage(message);
 
-                return;
-            }
+    return;
+  }
 
-            var nanotime = utils.getNanoTime();
-            var file = utils.defaults.videoBowl + '/' + nanotime + '.mp4';
-            ytdlUtils.youtubeDownload(file, utils.defaults.videoFormat, url).then(function (result) {
-                ffmpegUtils.cropVideo(file, durations.start, durations.to).then(function (croppedFile) {
-                    utils.logger.info('Video successfully cropped: ', croppedFile);
+  // Get information of the video.
+  ytdlUtils.videoInfo(url).then(function(videoInfo) {
 
-                    // Converting "to" seconds to duration to show end time.
-                    var startAsSec = moment.duration(durations.start).asSeconds();
-                    var toDuration = moment.utc((startAsSec + durations.to) * 1000).format("HH:mm:ss");
-                    $.sendMessage(durations.start + ' to ' + toDuration);
+    try {
+      // Checks values of times and normalizes.
+      videoInfo.durations = utils.normalizeDurations(videoInfo.duration, start, to);
+    } catch (err) {
+      var message = err.message + ' Please try again.';
+      $.sendMessage(message);
 
-                    var videoStream = fs.createReadStream(croppedFile);
+      return;
+    }
 
-                    $.sendVideo(videoStream, function (body, output) {
-                        exec('rm -rf ' + file + ' ' + croppedFile);
-                    });
-                }, function() {
-                    utils.logger.error('Error occured while converting the video.!');
+    // Get all suitable formats of the video.
+    ytdlUtils.getSuitableVideoFormat(url).then(function(resolution) {
 
-                    $.sendMessage('Error occured while converting the video! Please try again.')
+      // Get real streaming url of the remote video file.
+      ytdlUtils.getRealVideoUrl(url, videoInfo.durations.start, resolution).then(function(realUrl) {
 
-                    return;
-                });
-            }, function(error) {
-                utils.logger.error('Error occured while downloading the video.!');
+        // Crop a part of the video over the remote streaming url.
+        ffmpegUtils.cropVideoFromUrl(videoInfo.durations.start, videoInfo.durations.to, resolution, realUrl).then(function(croppedFile) {
+          utils.logger.info('Video successfully cropped: ', croppedFile);
 
-                $.sendMessage('Error occured while downloading the video! Please try again.')
+          // Converting "to" seconds to duration to show end time.
+          var startAsSec = moment.duration(videoInfo.durations.start).asSeconds();
+          var toDuration = moment.utc((startAsSec + videoInfo.durations.to) * 1000).format("HH:mm:ss");
 
-                return;
-            });
+          // Prepare video information to show with the video as a caption.
+          var durationCaption = 'Duration: ' + videoInfo.duration + '\n';
+          var betweenCaption = videoInfo.durations.start + ' to ' + toDuration;
+          var titleCaption = utils.trunc('Title: ' + videoInfo.title, (199 - durationCaption.length - betweenCaption.length)) + '\n';
+
+          var caption = durationCaption + titleCaption + betweenCaption;
+
+          // Create a stream from the downloaded video file.
+          var videoStream = fs.createReadStream(croppedFile);
+
+          // Send the strem of the cropped video file to the current message timelime.
+          $.sendVideo(videoStream, {
+            caption: caption
+          }, function(body, output) {
+            exec('rm -rf ' + croppedFile);
+          });
         }, function(error) {
-            utils.logger.error('The video does not exist!');
+          var error = 'Error occured while converting the video!';
+          utils.logger.error(error);
 
-            $.sendMessage('The video does not exist! Please check the url that you passed.')
-
-            return;
+          var message = error + ' Please try again.';
+          $.sendMessage(message);
         });
+
+      }, function(error) {
+        var error = 'Error occured while converting the video!';
+        utils.logger.error(error);
+
+        var message = error + ' Please try again.';
+        $.sendMessage(message);
+      });
+
+    }, function(error) {
+      var error = 'Error occured while converting the video!';
+      utils.logger.error(error);
+
+      var message = error + ' Please try again.';
+      $.sendMessage(message);
     });
 
-});
+  }, function(error) {
+    var error = 'The video does not exist! Check the url that you passed.';
+    utils.logger.error(error);
+
+    var message = error + ' Please try again.';
+    $.sendMessage(message);
+  });
+};
