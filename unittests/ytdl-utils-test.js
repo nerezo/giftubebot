@@ -7,9 +7,9 @@ var ytdl = require('youtube-dl');
 var streamify = require('streamify');
 var fs = require('fs');
 
-describe('ytdl-utils.js - videoInfo(<url>) unit tests', function() {
+describe('ytdl-utils.js - getVideoInfo(<url>) unit tests', function() {
 
-  it('videoInfo(<url>) should return information result within a promise', function(done) {
+  it('getVideoInfo(<url>) should return information result within a promise', function(done) {
     var url = 'https://www.youtube.com/watch?v=kZPtOf6gs5g';
 
     var info = {
@@ -20,7 +20,7 @@ describe('ytdl-utils.js - videoInfo(<url>) unit tests', function() {
 
     sinon.stub(ytdl, 'getInfo').yields(undefined, info);
 
-    ytdlUtils.videoInfo(url).done(function(result) {
+    ytdlUtils.getVideoInfo(url).done(function(result) {
       expect(result.url).to.equal(info.webpage_url);
       expect(result.title).to.equal(info.title);
       expect(result.duration).to.equal(utils.formatDurationString(info.duration));
@@ -30,13 +30,13 @@ describe('ytdl-utils.js - videoInfo(<url>) unit tests', function() {
       done();
     });
   });
-  it('videoInfo(<url>) should return a proper error result within a promise', function(done) {
+  it('getVideoInfo(<url>) should return a proper error result within a promise', function(done) {
     var url = 'https://www.youtube.com/watch?v=kZPtOf6gs5g';
     var err = 'Video not found!';
 
     sinon.stub(ytdl, 'getInfo').yields(err, undefined);
 
-    ytdlUtils.videoInfo(url).catch(function(result) {
+    ytdlUtils.getVideoInfo(url).catch(function(result) {
       expect(ytdl.getInfo.called).to.be.true;
       expect(result).to.equal(err);
 

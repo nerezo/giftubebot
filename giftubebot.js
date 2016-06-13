@@ -17,6 +17,9 @@ try {
   return;
 }
 
+// The command to be use on telegram to run video cropping.
+var command = '/gift';
+
 var tg = require('telegram-node-bot')(telegram_bot_key);
 
 utils.logger.info('Telegram video to bot listener started...');
@@ -24,23 +27,84 @@ console.log('Telegram video to bot listener started...');
 
 fs.existsSync(utils.defaults.videoBowl) || fs.mkdirSync(utils.defaults.videoBowl);
 
-// Triggers with two duration values. Crop the video from start to to value.
-tg.router.when(['/gift :url :start :to'], 'GiftControllerMiddleRange')
-tg.controller('GiftControllerMiddleRange', ($) => {
-  tg.for('/gift :url :start :to', ($) => {
-    var url = $.query.url;
-    var start = $.query.start;
-    var to = $.query.to;
+var startMessage = 'You can use below commands:\n\n' +
+  '/gift - crop videos from url with time parmaters\n' +
+  '/gifthelp - show description and usage information';
 
-    giftController($, url, start, to);
+var helpMessage = 'Crops specified part of YouTube or Vimeo videos and shows on the timeline.\n\n' +
+  'Usage: /gift <youtube_url> <start_time> <second>\n\n' +
+  'e.g.\n' +
+  'From the start time till the second:\n' +
+  '/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:04 5\n\n' +
+  'From the start time till the default second (5):\n' +
+  '/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:04\n\n' +
+  'From the beginning of the video till the second:\n' +
+  '/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 5\n\n' +
+  'If the second grather than 60 then crops only 60 seconds of the video.\n\n' +
+  'Sample start times: 8, 1:23, 01:23, 1:23:45, 01:23:45\n\n' +
+  'The video informations can be seen with "show-info" parameter with all other parameters as below\n'+
+  '/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:04 5 show-info';
+
+// Help method to give usage information.
+tg.router.when(['/start'], 'GiftControllerStart')
+tg.controller('GiftControllerStart', ($) => {
+  utils.logger.trace('GiftControllerStart');
+
+  tg.for('/start', ($) => {
+    var message = 'You can use below commands:\n\n';
+    message += '/gift - crop videos from url with time parmaters';
+    message += '/gifthelp - show description and usage information';
+
+    var opts = { disable_web_page_preview: true };
+    //$.sendMessage(startMessage, opts);
+    tg.sendMessage($.chatId, startMessage, opts);
   });
+
+});
+
+// Help method to give usage information.
+tg.router.when(['/gifthelp'], 'GiftControllerHelp')
+tg.controller('GiftControllerHelp', ($) => {
+  utils.logger.trace('GiftControllerHelp');
+
+  tg.for('/gifthelp', ($) => {
+    var message = helpMessage + '\n\n' + startMessage;
+
+    $.sendMessage(message);
+  });
+
+});
+
+// Triggers with two duration values. Crop the video from start to to value.
+tg.router.when([command + ' :url :start :to'], 'GiftControllerMiddleRange')
+tg.controller('GiftControllerMiddleRange', ($) => {
+  utils.logger.trace('GiftControllerMiddleRange');
+
+  tg.for(command + ' :url :start :to', ($) => {
+    giftController($, $.query.url, $.query.start, $.query.to, false);
+  });
+
+});
+// Triggers with two duration values. Crop the video from start to to value. Shows information if last parameter sends as '--show-info'.
+tg.router.when([command + ' :url :start :to :showInfo'], 'GiftControllerMiddleRangeShowInfo')
+tg.controller('GiftControllerMiddleRangeShowInfo', ($) => {
+  utils.logger.trace('GiftControllerMiddleRangeShowInfo');
+
+  tg.for(command + ' :url :start :to :showInfo', ($) => {
+    var showInfo = ($.query.showInfo === 'show-info');
+
+    giftController($, $.query.url, $.query.start, $.query.to, showInfo);
+  });
+
 });
 
 // Triggers with one duration value and decices where from it will crop the
 // video whether beginning or end.
-tg.router.when(['/gift :url :duration'], 'GiftControllerEdgeRange')
+tg.router.when([command + ' :url :duration'], 'GiftControllerEdgeRange')
 tg.controller('GiftControllerEdgeRange', ($) => {
-  tg.for('/gift :url :duration', ($) => {
+  utils.logger.trace('GiftControllerEdgeRange');
+
+  tg.for(command + ' :url :duration', ($) => {
     var url = $.query.url;
     var duration = $.query.duration;
 
@@ -54,14 +118,17 @@ tg.controller('GiftControllerEdgeRange', ($) => {
       to = Number(duration);
     }
 
-    giftController($, url, start, to);
+    giftController($, url, start, to, false);
   });
+
 });
 
-var giftController = function($, url, start, to) {
-  utils.logger.info('/giftube called with the parameters url:', url, 'start:', start, 'to:', to);
+var giftController = function($, url, start, to, showInfo) {
+  utils.logger.info('/gift called with the parameters url:', url, 'start:', start, 'to:', to, 'showInfo:', showInfo);
 
   try {
+    start = utils.formatDurationString(start);
+
     utils.validateStartParam(start);
     utils.validateToParam(to);
   } catch (err) {
@@ -72,7 +139,7 @@ var giftController = function($, url, start, to) {
   }
 
   // Get information of the video.
-  ytdlUtils.videoInfo(url).then(function(videoInfo) {
+  ytdlUtils.getVideoInfo(url).then(function(videoInfo) {
 
     try {
       // Checks values of times and normalizes.
@@ -92,57 +159,60 @@ var giftController = function($, url, start, to) {
 
         // Crop a part of the video over the remote streaming url.
         ffmpegUtils.cropVideoFromUrl(videoInfo.durations.start, videoInfo.durations.to, resolution, realUrl).then(function(croppedFile) {
-          utils.logger.info('Video successfully cropped: ', croppedFile);
-
-          // Converting "to" seconds to duration to show end time.
-          var startAsSec = moment.duration(videoInfo.durations.start).asSeconds();
-          var toDuration = moment.utc((startAsSec + videoInfo.durations.to) * 1000).format("HH:mm:ss");
-
-          // Prepare video information to show with the video as a caption.
-          var durationCaption = 'Duration: ' + videoInfo.duration + '\n';
-          var betweenCaption = videoInfo.durations.start + ' to ' + toDuration;
-          var titleCaption = utils.trunc('Title: ' + videoInfo.title, (199 - durationCaption.length - betweenCaption.length)) + '\n';
-
-          var caption = durationCaption + titleCaption + betweenCaption;
+          utils.logger.log('Video successfully cropped: ', croppedFile);
 
           // Create a stream from the downloaded video file.
           var videoStream = fs.createReadStream(croppedFile);
 
+          var videoOption = {};
+          if (showInfo) {
+            // Converting "to" seconds to duration to show end time.
+            var durationAsSec = moment.duration(videoInfo.duration).asSeconds();
+            var startAsSec = moment.duration(videoInfo.durations.start).asSeconds();
+            var toAsSec = startAsSec + videoInfo.durations.to;
+            toAsSec = ((toAsSec > durationAsSec) ? durationAsSec : toAsSec);
+            var toDuration = moment.utc(toAsSec * 1000).format("HH:mm:ss");
+
+            // Prepare video information to show with the video as a caption.
+            var durationCaption = 'Duration: ' + videoInfo.duration + '\n';
+            var betweenCaption = videoInfo.durations.start + ' to ' + toDuration;
+            var titleCaption = utils.trunc('Title: ' + videoInfo.title, (199 - durationCaption.length - betweenCaption.length)) + '\n';
+
+            var caption = durationCaption + titleCaption + betweenCaption;
+
+            videoOption.caption = caption;
+          }
+
           // Send the strem of the cropped video file to the current message timelime.
-          $.sendVideo(videoStream, {
-            caption: caption
-          }, function(body, output) {
-            exec('rm -rf ' + croppedFile);
+          $.sendVideo(videoStream, videoOption, function(body, output) {
+            utils.logger.log('Video successfully sent: ', body);
+            // Inactivated the removing step for now to collect the cropped videos.
+            // exec('rm -rf ' + croppedFile);
           });
         }, function(error) {
-          var error = 'Error occured while converting the video!';
           utils.logger.error(error);
 
-          var message = error + ' Please try again.';
-          $.sendMessage(message);
+          $.sendMessage('Error occured while converting the video! Please try again.');
         });
-
       }, function(error) {
-        var error = 'Error occured while converting the video!';
         utils.logger.error(error);
 
-        var message = error + ' Please try again.';
-        $.sendMessage(message);
+        $.sendMessage('Error occured while converting the video! Please try again.');
       });
-
     }, function(error) {
-      var error = 'Error occured while converting the video!';
       utils.logger.error(error);
 
-      var message = error + ' Please try again.';
-      $.sendMessage(message);
+      $.sendMessage('Error occured while converting the video! Please try again.');
     });
-
   }, function(error) {
-    var error = 'The video does not exist! Check the url that you passed.';
     utils.logger.error(error);
 
-    var message = error + ' Please try again.';
+    if (String(error).indexOf('Please sign in') > -1) {
+      message = 'YouTube said: This video requires authentication to view.'
+    } else {
+      message = 'The video does not exist! Check the url that you passed.';
+    }
+
     $.sendMessage(message);
   });
 };
