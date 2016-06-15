@@ -39,6 +39,10 @@ describe('utils.js - formatDurationString(<duration>) unit tests', function() {
     var formattedDurationString = utils.formatDurationString('1:2:3');
     expect(formattedDurationString).to.equal('01:02:03');
   });
+  it('formatDurationString(<duration>) should return a duration string formatted as 00:12:34 if minute and second are passed in as 12.34 (with dot signs)', function() {
+    var formattedDurationString = utils.formatDurationString('12.34');
+    expect(formattedDurationString).to.equal('00:12:34');
+  });
 });
 
 describe('utils.js - validateStartParam(<start>) unit tests', function() {

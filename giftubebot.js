@@ -41,8 +41,8 @@ var helpMessage = 'Crops specified part of YouTube or Vimeo videos and shows on 
   'From the beginning of the video till the second:\n' +
   '/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 5\n\n' +
   'If the second grather than 60 then crops only 60 seconds of the video.\n\n' +
-  'Sample start times: 8, 1:23, 01:23, 1:23:45, 01:23:45\n\n' +
-  'The video informations can be seen with "show-info" parameter with all other parameters as below\n'+
+  'Sample start times: 8, 1:23, 01:23, 1:23:45, 01:23:45. Durations can be used with dot charachters too like 1.23 or 02.34.\n\n' +
+  'Show Information: The video informations can be seen with "show-info" parameter with all other parameters as below\n' +
   '/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:04 5 show-info';
 
 // Help method to give usage information.
@@ -55,7 +55,9 @@ tg.controller('GiftControllerStart', ($) => {
     message += '/gift - crop videos from url with time parmaters';
     message += '/gifthelp - show description and usage information';
 
-    var opts = { disable_web_page_preview: true };
+    var opts = {
+      disable_web_page_preview: true
+    };
     //$.sendMessage(startMessage, opts);
     tg.sendMessage($.chatId, startMessage, opts);
   });
@@ -143,7 +145,7 @@ var giftController = function($, url, start, to, showInfo) {
 
     try {
       // Checks values of times and normalizes.
-      videoInfo.durations = utils.normalizeDurations(videoInfo.duration, start, to);
+      videoInfo.times = utils.normalizeDurations(videoInfo.duration, start, to);
     } catch (err) {
       var message = err.message + ' Please try again.';
       $.sendMessage(message);
@@ -155,39 +157,57 @@ var giftController = function($, url, start, to, showInfo) {
     ytdlUtils.getSuitableVideoFormat(url).then(function(resolution) {
 
       // Get real streaming url of the remote video file.
-      ytdlUtils.getRealVideoUrl(url, videoInfo.durations.start, resolution).then(function(realUrl) {
+      ytdlUtils.getRealVideoUrl(url, videoInfo.times.start, resolution).then(function(realUrl) {
 
         // Crop a part of the video over the remote streaming url.
-        ffmpegUtils.cropVideoFromUrl(videoInfo.durations.start, videoInfo.durations.to, resolution, realUrl).then(function(croppedFile) {
-          utils.logger.log('Video successfully cropped: ', croppedFile);
+        ffmpegUtils.cropVideoFromUrl(videoInfo.times.start, videoInfo.times.to, resolution, realUrl, videoInfo.id).then(function(croppedFilename) {
+          utils.logger.log('Video successfully cropped: ', croppedFilename);
 
-          // Create a stream from the downloaded video file.
-          var videoStream = fs.createReadStream(croppedFile);
+          // Embed logo to the cropped video.
+          ffmpegUtils.embedLogoAsWatermark(croppedFilename).then(function(finalFilename) {
+            utils.logger.log('Image successfully embedded to the video: ', finalFilename);
 
-          var videoOption = {};
-          if (showInfo) {
-            // Converting "to" seconds to duration to show end time.
-            var durationAsSec = moment.duration(videoInfo.duration).asSeconds();
-            var startAsSec = moment.duration(videoInfo.durations.start).asSeconds();
-            var toAsSec = startAsSec + videoInfo.durations.to;
-            toAsSec = ((toAsSec > durationAsSec) ? durationAsSec : toAsSec);
-            var toDuration = moment.utc(toAsSec * 1000).format("HH:mm:ss");
+            // Create a stream from the downloaded video file.
+            var finalFileWithPath = utils.defaults.videoBowl + '/' + finalFilename;
+            var videoStream = fs.createReadStream(finalFileWithPath);
 
-            // Prepare video information to show with the video as a caption.
-            var durationCaption = 'Duration: ' + videoInfo.duration + '\n';
-            var betweenCaption = videoInfo.durations.start + ' to ' + toDuration;
-            var titleCaption = utils.trunc('Title: ' + videoInfo.title, (199 - durationCaption.length - betweenCaption.length)) + '\n';
+            var videoOption = {};
+            if (showInfo) {
+              // Converting "to" seconds to duration to show end time.
+              var durationAsSec = moment.duration(videoInfo.duration).asSeconds();
+              var startAsSec = moment.duration(videoInfo.times.start).asSeconds();
+              var toAsSec = startAsSec + videoInfo.times.to;
 
-            var caption = durationCaption + titleCaption + betweenCaption;
+              if (durationAsSec === 0) {
+                videoInfo.duration = 'N/A';
+              } else {
+                toAsSec = ((toAsSec > durationAsSec) ? durationAsSec : toAsSec);
+              }
 
-            videoOption.caption = caption;
-          }
+              var toDuration = moment.utc(toAsSec * 1000).format("HH:mm:ss");
 
-          // Send the strem of the cropped video file to the current message timelime.
-          $.sendVideo(videoStream, videoOption, function(body, output) {
-            utils.logger.log('Video successfully sent: ', body);
-            // Inactivated the removing step for now to collect the cropped videos.
-            // exec('rm -rf ' + croppedFile);
+              // Prepare video information to show with the video as a caption.
+              var durationCaption = 'Duration: ' + videoInfo.duration + '\n';
+              var betweenCaption = videoInfo.times.start + ' to ' + toDuration;
+              var titleCaption = utils.trunc('Title: ' + videoInfo.title, (199 - durationCaption.length - betweenCaption.length)) + '\n';
+
+              var caption = durationCaption + titleCaption + betweenCaption;
+
+              videoOption.caption = caption;
+            }
+
+            // Send the strem of the cropped video file to the current message timelime.
+            $.sendVideo(videoStream, videoOption, function(body, output) {
+              if (body.ok) {
+                utils.logger.info('Video successfully sent. message_id:', body.result.message_id, ', chat_id:', body.result.chat.id, ', first_name:', body.result.chat.first_name, ', username:', body.result.chat.username);
+              } else {
+                utils.logger.warn('Video cannot be sent!');
+              }
+            });
+          }, function(error) {
+            utils.logger.error(error);
+
+            $.sendMessage('Error occured while converting the video! Please try again.');
           });
         }, function(error) {
           utils.logger.error(error);

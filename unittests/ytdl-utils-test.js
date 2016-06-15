@@ -9,21 +9,71 @@ var fs = require('fs');
 
 describe('ytdl-utils.js - getVideoInfo(<url>) unit tests', function() {
 
-  it('getVideoInfo(<url>) should return information result within a promise', function(done) {
+  it('getVideoInfo(<url>) should return information result within a promise if extractor is youtube', function(done) {
     var url = 'https://www.youtube.com/watch?v=kZPtOf6gs5g';
 
     var info = {
+      id: 'kZPtOf6gs5g',
       webpage_url: url,
       title: 'Title',
-      duration: '1:05'
+      duration: '1:05',
+      extractor: 'youtube'
     };
 
     sinon.stub(ytdl, 'getInfo').yields(undefined, info);
 
     ytdlUtils.getVideoInfo(url).done(function(result) {
+      expect(result.id).to.equal(info.id);
       expect(result.url).to.equal(info.webpage_url);
       expect(result.title).to.equal(info.title);
       expect(result.duration).to.equal(utils.formatDurationString(info.duration));
+
+      ytdl.getInfo.restore()
+
+      done();
+    });
+  });
+  it('getVideoInfo(<url>) should return information result within a promise if extractor is vimeo', function(done) {
+    var url = 'https://vimeo.com/6586873';
+
+    var info = {
+      id: '6586873',
+      webpage_url: url,
+      title: 'Title',
+      duration: '1:05',
+      extractor: 'vimeo'
+    };
+
+    sinon.stub(ytdl, 'getInfo').yields(undefined, info);
+
+    ytdlUtils.getVideoInfo(url).done(function(result) {
+      expect(result.id).to.equal(info.id);
+      expect(result.url).to.equal(info.webpage_url);
+      expect(result.title).to.equal(info.title);
+      expect(result.duration).to.equal(utils.formatDurationString(info.duration));
+
+      ytdl.getInfo.restore()
+
+      done();
+    });
+  });
+  it('getVideoInfo(<url>) should return information result within a promise if extractor is different from youtube or vimeo', function(done) {
+    var url = 'https://vine.co/v/M0q6UEXFEH9';
+
+    var info = {
+      id: 'M0q6UEXFEH9',
+      webpage_url: url,
+      title: 'Title',
+      extractor: 'Vine'
+    };
+
+    sinon.stub(ytdl, 'getInfo').yields(undefined, info);
+
+    ytdlUtils.getVideoInfo(url).done(function(result) {
+      expect(result.id).to.equal(info.id);
+      expect(result.url).to.equal(info.webpage_url);
+      expect(result.title).to.equal(info.title);
+      expect(result.duration).to.equal(utils.formatDurationString(0));
 
       ytdl.getInfo.restore()
 
@@ -45,7 +95,6 @@ describe('ytdl-utils.js - getVideoInfo(<url>) unit tests', function() {
       done();
     }).done();
   })
-
 });
 
 describe('ytdl-utils.js - videoDownload(<file>, <format>, <url>) unit tests', function() {

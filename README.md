@@ -49,18 +49,24 @@ Crops from beginning of the video till the seconds value:
 Examples:
 
 ```
-/gift https://www.youtube.com/watch?v=KTTTbUCxj2o 00:00:30 5
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:30 5
 ```
 
 ```
-/gift https://www.youtube.com/watch?v=KTTTbUCxj2o 00:00:30
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:30
 ```
 
 ```
-/gift https://www.youtube.com/watch?v=KTTTbUCxj2o 5
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 5
 ```
 
-You can give maximum 30 seconds as duration. If you would give more than that value, the bot will crop the video from start time as far as default duration value as 30 seconds.
+If the second grather than 60 then crops only 60 seconds of the video.
+Sample start times: 8, 1:23, 01:23, 1:23:45, 01:23:45. Durations can be used with dot charachters too like 1.23 or 02.34.
+Show Information: The video informations can be seen with "show-info" parameter with all other parameters as below.
+
+```
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:04 5 show-info
+```
 
 # License
 The MIT License (MIT)
