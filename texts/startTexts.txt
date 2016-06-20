@@ -1,0 +1,4 @@
+You can use below commands:
+
+/gift - crop videos from url with time parameters.
+/gifthelp - show description and usage information.
