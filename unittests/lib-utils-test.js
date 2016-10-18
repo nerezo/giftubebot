@@ -21,58 +21,66 @@ describe('utils.js - formatDurationString(<duration>) unit tests', function() {
     var fn = function() {
       utils.formatDurationString('ab');
     }
-    expect(fn).to.throw(Error, /duration parameter should be a number or a duration string!/);
+    expect(fn).to.throw(Error, /duration parameter should be a number or a standard duration string! e.g. 01:02:03.123./);
   });
   it('formatDurationString(<duration>) should return a duration string formatted as 00:00:12 if only second is passed in as 12', function() {
     var formattedDurationString = utils.formatDurationString('12');
-    expect(formattedDurationString).to.equal('00:00:12');
+    expect(formattedDurationString).to.equal('00:00:12.000');
+  });
+  it('formatDurationString(<duration>) should return a duration string formatted as 00:00:12.123 if only second is passed in as 12.123', function() {
+    var formattedDurationString = utils.formatDurationString('12.123');
+    expect(formattedDurationString).to.equal('00:00:12.123');
   });
   it('formatDurationString(<duration>) should return a duration string formatted as 00:12:34 if minute and second are passed in as 12:34', function() {
     var formattedDurationString = utils.formatDurationString('12:34');
-    expect(formattedDurationString).to.equal('00:12:34');
+    expect(formattedDurationString).to.equal('00:12:34.000');
   });
   it('formatDurationString(<duration>) should return a duration string formatted as 12:34:56 if hour, minute and second are passed in as 12:34:56', function() {
     var formattedDurationString = utils.formatDurationString('12:34:56');
-    expect(formattedDurationString).to.equal('12:34:56');
+    expect(formattedDurationString).to.equal('12:34:56.000');
   });
   it('formatDurationString(<duration>) should return a duration string formatted as 01:02:03 if hour, minute and second are passed in as 1:2:3', function() {
     var formattedDurationString = utils.formatDurationString('1:2:3');
-    expect(formattedDurationString).to.equal('01:02:03');
-  });
-  it('formatDurationString(<duration>) should return a duration string formatted as 00:12:34 if minute and second are passed in as 12.34 (with dot signs)', function() {
-    var formattedDurationString = utils.formatDurationString('12.34');
-    expect(formattedDurationString).to.equal('00:12:34');
+    expect(formattedDurationString).to.equal('01:02:03.000');
   });
 });
 
 describe('utils.js - validateStartParam(<start>) unit tests', function() {
+  var mandatoryErrorDescription = /start parameter is mandatory!/;
+  var formatErrorDescription = /start time should be in this format "hh:mm:ss" or "hh:mm:ss.sss". i.e. "00:12:30" or "00:12:30.456"./;
   it('validateStartParam(<start>) should throw exception if no items are passed in', function() {
     var fn = function() {
       utils.validateStartParam();
     }
-    expect(fn).to.throw(Error, /start parameter is mandatory!/);
+    expect(fn).to.throw(Error, mandatoryErrorDescription);
   });
   it('validateStartParam(<start>) should throw exception if numeric value passed in', function() {
     var fn = function() {
       utils.validateStartParam(12);
     }
-    expect(fn).to.throw(Error, /start time should be in this format "hh:mm:ss". i.e. "00:12:30"./);
+    expect(fn).to.throw(Error, formatErrorDescription);
   });
   it('validateStartParam(<start>) should throw exception if an invalid string passed in', function() {
     var fn = function() {
       utils.validateStartParam('as');
     }
-    expect(fn).to.throw(Error, /start time should be in this format "hh:mm:ss". i.e. "00:12:30"./);
+    expect(fn).to.throw(Error, formatErrorDescription);
   });
   it('validateStartParam(<start>) should throw exception if a wrong formatted duration string passed in', function() {
     var fn = function() {
       utils.validateStartParam('123:33::2');
     }
-    expect(fn).to.throw(Error, /start time should be in this format "hh:mm:ss". i.e. "00:12:30"./);
+    expect(fn).to.throw(Error, formatErrorDescription);
+  });
+  it('validateStartParam(<start>) should throw exception if there is no millisecond value in the string passed in', function() {
+    var fn = function() {
+      utils.validateStartParam('12:34:56');
+    }
+    expect(fn).to.throw(Error, formatErrorDescription);
   });
   it('validateStartParam(<start>) should be okay if a valid duration string passed in', function() {
     var fn = function() {
-      utils.validateStartParam('12:34:56');
+      utils.validateStartParam('12:34:56.000');
     }
     expect(fn).to.not.throw(Error);
   });
@@ -83,19 +91,19 @@ describe('utils.js - validateToParam(<to>) unit tests', function() {
     var fn = function() {
       utils.validateToParam();
     }
-    expect(fn).to.throw(Error, /second parameter is mandatory!/);
+    expect(fn).to.throw(Error, /^second parameter is mandatory!$/);
   });
   it('validateToParam(<to>) should throw exception if a string passed in', function() {
     var fn = function() {
       utils.validateToParam('as');
     }
-    expect(fn).to.throw(Error, /second value should be a numeric value./);
+    expect(fn).to.throw(Error, /^second value should be a numeric value.$/);
   });
   it('validateToParam(<to>) should throw exception if 0 passed in', function() {
     var fn = function() {
       utils.validateToParam(0);
     }
-    expect(fn).to.throw(Error, /second value should be greater than 0./);
+    expect(fn).to.throw(Error, /^second value should be greater than 0.$/);
   });
   it('validateToParam(<to>) should be okay if a valid number passed in', function() {
     var fn = function() {

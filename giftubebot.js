@@ -1,12 +1,19 @@
 'use strict'
 
-var utils = require('./lib/utils.js');
-var ytdlUtils = require('./lib/ytdl-utils.js');
-var ffmpegUtils = require('./lib/ffmpeg-utils.js');
+const Telegram = require('telegram-node-bot');
+const TelegramBaseController = Telegram.TelegramBaseController;
+const TextCommand = Telegram.TextCommand;
+const RegexpCommand = Telegram.RegexpCommand;
+const minimist = require('minimist');
+const s = require("underscore.string");
 
-var Q = require('q');
-var moment = require('moment');
-var fs = require('fs');
+const utils = require('./lib/utils.js');
+const ytdlUtils = require('./lib/ytdl-utils.js');
+const ffmpegUtils = require('./lib/ffmpeg-utils.js');
+
+const Q = require('q');
+const moment = require('moment');
+const fs = require('fs');
 
 var telegram_bot_key;
 try {
@@ -19,13 +26,15 @@ try {
 
 var GENERIC_ERROR_MESSAGE = 'Error occured while converting the video! Please try again.\n/gifthelp';
 
-// The command to be use on telegram to run video cropping.
-var command = '/gift';
+const tg = new Telegram.Telegram(telegram_bot_key, {
+    webAdmin: {
+        port: 1234,
+        host: 'localhost'
+    }
+});
 
-var tg = require('telegram-node-bot')(telegram_bot_key);
-
-utils.logger.info('Telegram video to bot listener started...');
-console.log('Telegram video to bot listener started...');
+utils.logger.info('Telegram video to gif bot started...');
+console.log('Telegram video to gif bot started...');
 
 fs.existsSync(utils.defaults.videoBowl) || fs.mkdirSync(utils.defaults.videoBowl);
 
@@ -33,11 +42,13 @@ var startText = fs.readFileSync('./texts/startTexts.txt', 'utf8');
 var helpText = fs.readFileSync('./texts/helpTexts.txt', 'utf8');
 
 // Help method to give usage information.
-tg.router.when(['/start'], 'GiftControllerStart')
-tg.controller('GiftControllerStart', ($) => {
-  utils.logger.trace('GiftControllerStart');
+class GiftStartController extends TelegramBaseController {
+  /**
+   * @param {Scope} $
+   */
+  startHandler($) {
+    utils.logger.trace('GiftStartController');
 
-  tg.for('/start', ($) => {
     var message = 'You can use below commands:\n\n';
     message += '/gift - crop videos from url with time parmaters';
     message += '/gifthelp - show description and usage information';
@@ -46,71 +57,92 @@ tg.controller('GiftControllerStart', ($) => {
       disable_web_page_preview: true
     };
     $.sendMessage(startText, opts);
-  });
+  }
 
-});
+  get routes() {
+    return {
+      'startCommand': 'startHandler'
+    }
+  }
+}
+tg.router.when(new TextCommand('/start', 'startCommand'), new GiftStartController());
 
 // Help method to give usage information.
-tg.router.when(['/gifthelp'], 'GiftControllerHelp')
-tg.controller('GiftControllerHelp', ($) => {
-  utils.logger.trace('GiftControllerHelp');
+class GiftHelpController extends TelegramBaseController {
+  /**
+   * @param {Scope} $
+   */
+  gifthelpHandler($) {
+    utils.logger.trace('GiftHelpController');
 
-  tg.for('/gifthelp', ($) => {
+    var message = 'You can use below commands:\n\n';
+    message += '/gift - crop videos from url with time parmaters';
+    message += '/gifthelp - show description and usage information';
+
     var message = helpText + '\n\n' + startText;
 
-    $.sendMessage(message);
-  });
+    var opts = {
+      disable_web_page_preview: true
+    };
+    $.sendMessage(message, opts);
+  }
 
-});
+  get routes() {
+    return {
+      'gifthelpCommand': 'gifthelpHandler'
+    }
+  }
+}
+tg.router.when(new TextCommand('/gifthelp', 'gifthelpCommand'), new GiftHelpController());
 
-// Triggers with two duration values. Crop the video from start to to value.
-tg.router.when([command + ' :url :start :to'], 'GiftControllerMiddleRange')
-tg.controller('GiftControllerMiddleRange', ($) => {
-  utils.logger.trace('GiftControllerMiddleRange');
+// A short-cut to call help controller.
+const callHelp = function ($) {
+  (new GiftHelpController()).gifthelpHandler($);
+}
 
-  tg.for(command + ' :url :start :to', ($) => {
-    giftController($, $.query.url, $.query.start, $.query.to, false);
-  });
+// Triggers with url, only duration or start with duration values. Crop the video from start to to value.
+class GiftCropController extends TelegramBaseController {
+  /**
+   * @param {Scope} $
+   */
+  giftHandler($) {
+    utils.logger.trace('GiftCropController');
 
-});
-// Triggers with two duration values. Crop the video from start to to value. Shows information if last parameter sends as '--show-info'.
-tg.router.when([command + ' :url :start :to :showInfo'], 'GiftControllerMiddleRangeShowInfo')
-tg.controller('GiftControllerMiddleRangeShowInfo', ($) => {
-  utils.logger.trace('GiftControllerMiddleRangeShowInfo');
+    var errorMessage = undefined;
 
-  tg.for(command + ' :url :start :to :showInfo', ($) => {
-    var showInfo = ($.query.showInfo === 'show-info');
+    var argvArray = s($.message.text).trim().clean().value().split(' ');
+    var argv = minimist(argvArray.slice(1));
 
-    giftController($, $.query.url, $.query.start, $.query.to, showInfo);
-  });
-
-});
-
-// Triggers with one duration value and decices where from it will crop the
-// video whether beginning or end.
-tg.router.when([command + ' :url :duration'], 'GiftControllerEdgeRange')
-tg.controller('GiftControllerEdgeRange', ($) => {
-  utils.logger.trace('GiftControllerEdgeRange');
-
-  tg.for(command + ' :url :duration', ($) => {
-    var url = $.query.url;
-    var duration = $.query.duration;
-
-    var start, to;
-
-    if (isNaN(duration)) {
-      start = duration;
-      to = utils.defaults.toAsSec;
-    } else {
-      start = '00:00:00';
-      to = Number(duration);
+    if (argv._.length > 4 || argv._.length < 2) {
+      callHelp($);
+      return;
     }
 
-    giftController($, url, start, to, false);
-  });
+    var url = argv._[0];
+    var start = '';
+    var to = '';
+    if (argv._.length > 2) {
+      start = argv._[1]; // Use second parameter as start value
+      to = argv._[2]; // Use third parameter as duration value
+    } else {
+      start = '00:00:00'; // Starts from the beginning of the video
+      to = argv._[1]; // Use second parameter as duration value
+    }
 
-});
+    var showInfo = (argv._.indexOf('show-info') !== -1);
 
+    giftController($, url, start, to, showInfo);
+  }
+
+  get routes() {
+    return {
+      'giftCommand': 'giftHandler'
+    }
+  }
+}
+tg.router.when(new TextCommand('/gift', 'giftCommand'), new GiftCropController());
+
+// Main method
 var giftController = function($, url, start, to, showInfo) {
   utils.logger.info('/gift called with the parameters url:', url, 'start:', start, 'to:', to, 'showInfo:', showInfo);
 
@@ -123,8 +155,11 @@ var giftController = function($, url, start, to, showInfo) {
 
     utils.validateStartParam(start);
     utils.validateToParam(to);
+
+    // Format to value after validation since we need this value as a duration value.
+    to = utils.formatDurationString(to);
   } catch (err) {
-    var message = err.message + ' Please try again.\ngifthelp';
+    var message = err.message + ' Please try again.\n/gifthelp';
     $.sendMessage(message);
 
     return;
@@ -136,13 +171,13 @@ var giftController = function($, url, start, to, showInfo) {
     try {
       // Checks values of times and normalizes.
       videoInfo.times = utils.normalizeDurations(videoInfo.duration, start, to);
+      utils.logger.debug('videoInfo.times: ', videoInfo.times);
     } catch (err) {
-      var message = err.message + ' Please try again.\ngifthelp';
+      var message = err.message + ' Please try again.\n/gifthelp';
       $.sendMessage(message);
 
       return;
     }
-
     // Get all suitable formats of the video.
     ytdlUtils.getSuitableVideoFormat(url).then(function(resolution) {
 
@@ -163,18 +198,18 @@ var giftController = function($, url, start, to, showInfo) {
 
             var videoOption = {};
             if (showInfo) {
-              // Converting "to" seconds to duration to show end time.
-              var durationAsSec = moment.duration(videoInfo.duration).asSeconds();
-              var startAsSec = moment.duration(videoInfo.times.start).asSeconds();
-              var toAsSec = startAsSec + videoInfo.times.to;
+              // Converting "to" milliseconds to duration to show end time.
+              var durationAsMsec = moment.duration(videoInfo.duration).asMilliseconds();
+              var startAsMsec = moment.duration(videoInfo.times.start).asMilliseconds();
+              var toAsMsec = startAsMsec + moment.duration(videoInfo.times.to).asMilliseconds();
 
-              if (durationAsSec === 0) {
+              if (durationAsMsec === 0) {
                 videoInfo.duration = 'N/A';
               } else {
-                toAsSec = ((toAsSec > durationAsSec) ? durationAsSec : toAsSec);
+                toAsMsec = ((toAsMsec > durationAsMsec) ? durationAsMsec : toAsMsec);
               }
 
-              var toDuration = moment.utc(toAsSec * 1000).format("HH:mm:ss");
+              var toDuration = moment.utc(toAsMsec).format("HH:mm:ss.SSS");
 
               // Prepare video information to show with the video as a caption.
               var durationCaption = 'Duration: ' + videoInfo.duration + '\n';

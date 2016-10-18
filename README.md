@@ -53,15 +53,23 @@ Examples:
 ```
 
 ```
-/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:30
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:30 5.234
 ```
 
 ```
-/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 5
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 00:00:20.34
+```
+
+```
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 3
+```
+
+```
+/gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 5.54
 ```
 
 If the second grather than 30 then crops only 30 seconds of the video.
-Sample start times: 8, 1:23, 01:23, 1:23:45, 01:23:45. Durations can be used with dot charachters too like 1.23 or 02.34.
+Sample start times: 8, 1:23, 01:23, 1:23:45, 01:23:45. Start time can be used with milliseconds for example 8.123 or 01:23.456.
 Show Information: The video informations can be seen with "show-info" parameter with all other parameters as below.
 
 ```
