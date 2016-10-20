@@ -93,7 +93,6 @@ class GiftHelpController extends TelegramBaseController {
     }
   }
 }
-tg.router.when(new TextCommand('/gifthelp', 'gifthelpCommand'), new GiftHelpController());
 
 // A short-cut to call help controller.
 const callHelp = function ($) {
@@ -101,6 +100,7 @@ const callHelp = function ($) {
 }
 
 // Triggers with url, only duration or start with duration values. Crop the video from start to to value.
+// This contoller handles also /gifthelp command and calls the above function named callHelp.
 class GiftCropController extends TelegramBaseController {
   /**
    * @param {Scope} $
@@ -131,7 +131,13 @@ class GiftCropController extends TelegramBaseController {
 
     var showInfo = (argv._.indexOf('show-info') !== -1);
 
-    giftController($, url, start, to, showInfo);
+    try {
+      giftController($, url, start, to, showInfo);
+    } catch (result) {
+      utils.logger.error(result);
+
+      $.sendMessage(result.message);
+    }
   }
 
   get routes() {
@@ -146,6 +152,8 @@ tg.router.when(new TextCommand('/gift', 'giftCommand'), new GiftCropController()
 var giftController = function($, url, start, to, showInfo) {
   utils.logger.info('/gift called with the parameters url:', url, 'start:', start, 'to:', to, 'showInfo:', showInfo);
 
+  var error_message = GENERIC_ERROR_MESSAGE;
+
   if (url.indexOf('www\.youtu\.be')) {
     url = url.replace(/www\./g, '');
   }
@@ -158,11 +166,10 @@ var giftController = function($, url, start, to, showInfo) {
 
     // Format to value after validation since we need this value as a duration value.
     to = utils.formatDurationString(to);
-  } catch (err) {
-    var message = err.message + ' Please try again.\n/gifthelp';
-    $.sendMessage(message);
+  } catch (error) {
+    error_message = error.message + ' Please try again.\n/gifthelp';
 
-    return;
+    throw {error: error, message: error_message};
   }
 
   // Get information of the video.
@@ -172,11 +179,10 @@ var giftController = function($, url, start, to, showInfo) {
       // Checks values of times and normalizes.
       videoInfo.times = utils.normalizeDurations(videoInfo.duration, start, to);
       utils.logger.debug('videoInfo.times: ', videoInfo.times);
-    } catch (err) {
-      var message = err.message + ' Please try again.\n/gifthelp';
-      $.sendMessage(message);
+    } catch (error) {
+      error_message = error.message + ' Please try again.\n/gifthelp';
 
-      return;
+      throw {error: error, message: error_message};
     }
     // Get all suitable formats of the video.
     ytdlUtils.getSuitableVideoFormat(url).then(function(resolution) {
@@ -186,11 +192,11 @@ var giftController = function($, url, start, to, showInfo) {
 
         // Crop a part of the video over the remote streaming url.
         ffmpegUtils.cropVideoFromUrl(videoInfo.times.start, videoInfo.times.to, resolution, realUrl, videoInfo.id).then(function(croppedFilename) {
-          utils.logger.info('Video successfully cropped:', croppedFilename);
+          utils.logger.info('Video successfully cropped: '  + croppedFilename);
 
           // Embed logo to the cropped video.
           ffmpegUtils.embedLogoAsWatermark(croppedFilename, videoInfo.extractor).then(function(finalFilename) {
-            utils.logger.info('Image successfully embedded to the video:', finalFilename);
+            utils.logger.info('Image successfully embedded to the video: ' + finalFilename);
 
             // Create a stream from the downloaded video file.
             var finalFileWithPath = utils.defaults.videoBowl + '/' + finalFilename;
@@ -222,49 +228,36 @@ var giftController = function($, url, start, to, showInfo) {
             }
 
             // Send the strem of the cropped video file to the current message timelime.
-            $.sendVideo(videoStream, videoOption, function(body, output) {
-              if (body.ok) {
-                utils.logger.info('Video successfully sent. message_id:', body.result.message_id, ', chat_id:', body.result.chat.id, ', first_name:', body.result.chat.first_name, ', username:', body.result.chat.username);
-              } else {
-                utils.logger.warn('Video cannot be sent!');
-              }
+            $.sendVideo(videoStream, videoOption).then(function(message) {
+              utils.logger.info('Video successfully sent. message_id: ' + message._messageId + ', chat_id: ' + message._chat._id + ', first_name: ' + message._chat._firstName + ', username: ' + message._chat._username);
+            }, function(result) {
+              utils.logger.error('Video cannot be sent! ', result);
             });
           }, function(error) {
-            utils.logger.error(error);
-
-            $.sendMessage(GENERIC_ERROR_MESSAGE);
+            throw {error: error, message: error_message};
           });
         }, function(error) {
-          utils.logger.error(error);
-
-          $.sendMessage(GENERIC_ERROR_MESSAGE);
+          throw {error: error, message: error_message};
         });
       }, function(error) {
-        utils.logger.error(error);
-
-        $.sendMessage(GENERIC_ERROR_MESSAGE);
+        throw {error: error, message: error_message};
       });
     }, function(error) {
-      utils.logger.error(error);
-
-      var message = GENERIC_ERROR_MESSAGE;
       if (String(error).indexOf('exist or is private' > -1)) {
-        message = 'YouTube said: The playlist doesn\'t exist or is private.';
+        error_message = 'YouTube said: The playlist doesn\'t exist or is private.';
       }
 
-      $.sendMessage(message);
+      throw {error: error, message: error_message};
     });
   }, function(error) {
-    utils.logger.error(error);
-
     if (String(error).indexOf('Please sign in') > -1) {
-      message = 'YouTube said: This video requires authentication to view.'
+      error_message = 'YouTube said: This video requires authentication to view.'
     } else if (String(error).indexOf('available') > -1) {
-      message = 'YouTube said: The uploader has not made this video available in your country.'
+      error_message = 'YouTube said: The uploader has not made this video available in your country.'
     } else {
-      message = 'The video does not exist! Check the url that you passed.\n/gifthelp';
+      error_message = 'The video does not exist! Check the url that you passed.\n/gifthelp';
     }
 
-    $.sendMessage(message);
+    throw {error: error, message: error_message};
   });
 };
