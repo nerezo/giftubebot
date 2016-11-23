@@ -119,6 +119,15 @@ class GiftCropController extends TelegramBaseController {
     }
 
     var url = argv._[0];
+    if (utils.isUrl(url)) {
+      if (url.indexOf('www\.youtu\.be') > -1) {
+        url = url.replace(/www\./g, '');
+      }
+    } else {
+      callHelp($);
+      return;
+    }
+
     var start = '';
     var to = '';
     if (argv._.length > 2) {
@@ -129,14 +138,12 @@ class GiftCropController extends TelegramBaseController {
       to = argv._[1]; // Use second parameter as duration value
     }
 
-    var showInfo = (argv._.indexOf('show-info') !== -1);
+    var showInfo = (argv._.indexOf('show-info') > -1);
 
     try {
       giftController($, url, start, to, showInfo);
-    } catch (result) {
-      utils.logger.error(result);
-
-      $.sendMessage(result.message);
+    } catch (error) {
+      handleException($, error);
     }
   }
 
@@ -148,15 +155,18 @@ class GiftCropController extends TelegramBaseController {
 }
 tg.router.when(new TextCommand('/gift', 'giftCommand'), new GiftCropController());
 
+// Exception handlig method. Logging the error and sends the error message to the chat window too.
+var handleException = function($, error) {
+  utils.logger.error(error);
+
+  $.sendMessage(error.message);
+};
+
 // Main method
 var giftController = function($, url, start, to, showInfo) {
   utils.logger.info('/gift called with the parameters url:', url, 'start:', start, 'to:', to, 'showInfo:', showInfo);
 
   var error_message = GENERIC_ERROR_MESSAGE;
-
-  if (url.indexOf('www\.youtu\.be')) {
-    url = url.replace(/www\./g, '');
-  }
 
   try {
     start = utils.formatDurationString(start);
@@ -174,7 +184,6 @@ var giftController = function($, url, start, to, showInfo) {
 
   // Get information of the video.
   ytdlUtils.getVideoInfo(url).then(function(videoInfo) {
-
     try {
       // Checks values of times and normalizes.
       videoInfo.times = utils.normalizeDurations(videoInfo.duration, start, to);
@@ -184,6 +193,7 @@ var giftController = function($, url, start, to, showInfo) {
 
       throw {error: error, message: error_message};
     }
+
     // Get all suitable formats of the video.
     ytdlUtils.getSuitableVideoFormat(url).then(function(resolution) {
 
@@ -231,33 +241,37 @@ var giftController = function($, url, start, to, showInfo) {
             $.sendVideo(videoStream, videoOption).then(function(message) {
               utils.logger.info('Video successfully sent. message_id: ' + message._messageId + ', chat_id: ' + message._chat._id + ', first_name: ' + message._chat._firstName + ', username: ' + message._chat._username);
             }, function(result) {
-              utils.logger.error('Video cannot be sent! ', result);
+              utils.logger.error('Cropped video loop cannot be sent! ', result);
+
+              handleException($, {error: result, message: 'Cropped video loop cannot be sent!'});
             });
-          }, function(error) {
-            throw {error: error, message: error_message};
+          }).catch(function (error) {
+            handleException($, {error: error, message: error_message});
           });
-        }, function(error) {
-          throw {error: error, message: error_message};
+        }).catch(function (error) {
+          handleException($, {error: error, message: error_message});
         });
-      }, function(error) {
-        throw {error: error, message: error_message};
+      }).catch(function (error) {
+        handleException($, {error: error, message: error_message});
       });
-    }, function(error) {
-      if (String(error).indexOf('exist or is private' > -1)) {
+    }).catch(function (error) {
+      if (String(error).indexOf('exist or is private') > -1) {
         error_message = 'YouTube said: The playlist doesn\'t exist or is private.';
       }
 
-      throw {error: error, message: error_message};
+      handleException($, {error: error, message: error_message});
     });
-  }, function(error) {
+  }).catch(function (error) {
     if (String(error).indexOf('Please sign in') > -1) {
       error_message = 'YouTube said: This video requires authentication to view.'
+    } else if (String(error).indexOf('Facebook') > -1) {
+      error_message = 'Error: ' + String(error).split('ERROR:')[1];
     } else if (String(error).indexOf('available') > -1) {
       error_message = 'YouTube said: The uploader has not made this video available in your country.'
     } else {
       error_message = 'The video does not exist! Check the url that you passed.\n/gifthelp';
     }
 
-    throw {error: error, message: error_message};
+    handleException($, {error: error, message: error_message});
   });
 };

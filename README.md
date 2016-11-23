@@ -68,7 +68,7 @@ Examples:
 /gift https://www.youtube.com/watch?v=QPFuwEqBgDQ 5.54
 ```
 
-If the second grather than 30 then crops only 30 seconds of the video.
+If the second grather than 60 then crops only 60 seconds of the video.
 Sample start times: 8, 1:23, 01:23, 1:23:45, 01:23:45. Start time can be used with milliseconds for example 8.123 or 01:23.456.
 Show Information: The video informations can be seen with "show-info" parameter with all other parameters as below.
 
