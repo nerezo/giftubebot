@@ -93,6 +93,7 @@ class GiftHelpController extends TelegramBaseController {
     }
   }
 }
+tg.router.when(new TextCommand('/gifthelp', 'gifthelpHandler'), new GiftHelpController());
 
 // A short-cut to call help controller.
 const callHelp = function ($) {
