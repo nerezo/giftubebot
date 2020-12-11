@@ -1,9 +1,21 @@
 {
-  "appenders": [{
-    "type": "file",
-    "filename": "log/app.log",
-    "maxLogSize": 10240000,
-    "numBackups": 10,
-    "category": "logger"
-  }]
+  "appenders": {
+    "logger": {
+      "type": "file",
+      "filename": "log/app.log",
+      "maxLogSize": 10240000,
+      "numBackups": 10,
+      "category": "logger"
+    }
+  },
+  "categories": {
+    "default": {
+      "appenders": [
+        "logger"
+      ],
+      "level": "error"
+    }
+  }
 }
+
+

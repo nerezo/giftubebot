@@ -14,19 +14,19 @@
   "contributors": [],
   "license": "MIT",
   "dependencies": {
-    "crypto": "0.0.3",
-    "log4js": "^0.6.38",
-    "minimist": "^1.2.0",
-    "moment": "^2.15.1",
-    "q": "^1.4.1",
-    "shelljs": "^0.7.5",
-    "telegram-node-bot": "^4.0.3",
-    "underscore.string": "^3.3.4",
-    "youtube-dl": "^1.11.1"
+    "crypto": "^1.0.1",
+    "log4js": "^6.3.0",
+    "minimist": "^1.2.5",
+    "moment": "^2.29.1",
+    "q": "^1.5.1",
+    "shelljs": "^0.8.4",
+    "telegram-node-bot": "^4.0.5",
+    "underscore.string": "^3.3.5",
+    "youtube-dl": "^3.0.2"
   },
   "devDependencies": {
-    "chai": "^3.5.0",
-    "continuation-local-storage": "^3.2.0",
-    "sinon": "^1.17.6"
+    "chai": "^4.2.0",
+    "continuation-local-storage": "^3.2.1",
+    "sinon": "^9.2.2"
   }
 }
