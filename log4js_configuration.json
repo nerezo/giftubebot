@@ -13,7 +13,7 @@
       "appenders": [
         "logger"
       ],
-      "level": "error"
+      "level": "trace"
     }
   }
 }
