@@ -3,7 +3,7 @@ var expect = chai.expect; // we are using the "expect" style of Chai
 var sinon = require('sinon');
 var utils = require('../lib/utils.js');
 var ytdlUtils = require('../lib/ytdl-utils.js');
-var ytdl = require('youtube-dl');
+var ytdl = require('youtube-dl-exec')
 var streamify = require('streamify');
 var fs = require('fs');
 
