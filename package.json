@@ -17,7 +17,7 @@
     "crypto-js": "4.1.1",
     "log4js": "6.3.0",
     "minimist": "1.2.5",
-    "moment": "2.29.1",
+    "moment": "2.29.2",
     "q": "1.5.1",
     "shelljs": "0.8.4",
     "telegram-node-bot": "4.0.5",
